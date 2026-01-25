@@ -1,56 +1,60 @@
-# 🌐 Language 
+Fork of https://github.com/PPTG/DieselPilot
+THANX to PPTG for your excelent Work
 
-**[🇬🇧 English](#english)** | **[🇵🇱 Polski](#polish)**
+### 📖 Beschreibung
 
----
+**Diesel Pilot Multi** ist ein voll ausgestatteter ESP32-Controller für mehrere chinesische Dieselheizungen, die über 433 MHz RF kommunizieren.
+Das Projekt ermöglicht die vollständige Steuerung mehrerer Heizungen über einen Webbrowser, MQTT sowie die Integration in Home Assistant.
 
-<a name="english"></a>
-## 🇬🇧 ENGLISH VERSION
-
-### 📖 Description
-
-**Diesel Pilot** is a fully-featured ESP32 controller for Chinese diesel heaters communicating via 433 MHz RF. The project enables full heater control through a web browser, MQTT, and integration with Home Assistant.
-
-⚠️ **IMPORTANT:** 
-Use at your own risk!!!!
-
-<img width="874" height="730" alt="WEB" src="https://github.com/user-attachments/assets/a3715ef1-9ef1-4257-a28f-77bb7ff2645d" />
+⚠️ WICHTIG: Verwendung auf eigene Gefahr!
 
 
-### 🔧 Compatibility:
 
-- I tested two controllers with 🔧 as the upper left button,one had a red remote control, the other a black one, both works.
-- There is also a version of the controller with a ☀️ symbol.
-- It is possible to add support as soon as I manage to buy one and map the data frames from the radio.
-- However, I currently only support versions with the 🔧 symbol!!!
-- You can find out more in the Wiki page.
+<img width="1296" height="336" alt="grafik" src="https://github.com/user-attachments/assets/02f6ef76-9f66-4416-a6dd-e640d1168c8f" />
+<img width="1134" height="611" alt="grafik" src="https://github.com/user-attachments/assets/07008773-260f-4bcd-a896-4d42aa34d7aa" />
+
+
+### 🔧 Kompatibilität:
+PPTG hat zwei Controller getestet, bei denen 🔧 die obere linke Taste ist – einer mit roter Fernbedienung, der andere mit schwarzer. Beide funktionieren.
+
+Es gibt außerdem eine Version des Controllers mit einem ☀️‑Symbol.
+
+Unterstützung für diese Version kann hinzugefügt werden, sobald PPTG es schafft, ein solches Modell zu kaufen und die Datenrahmen des Funkprotokolls zu analysieren.
+
+Derzeit unterstützt die Version nur Displays mit dem 🔧‑Symbol!
+
+Weitere Informationen findest du auf der Wiki‑Seite von PPTG.
 
 ![edited](https://github.com/user-attachments/assets/3b78064b-d00a-4f14-a39b-06667b446803)
 
 
-### ✨ Features
-
-- 🌐 **Web GUI** - elegant dark theme interface
-- 📟 **OLED Display SH1106** - real-time status and IP
-- 📡 **WiFi** - AP mode (default) + configurable STA mode
-- 📨 **MQTT** - full Home Assistant integration
-- 🔗 **Pairing** - automatic and manual
-- 🎮 **Control** - POWER, UP, DOWN, MODE
-- 💾 **NVS Memory** - configuration survives reset
-- ☁︎ **OTA UPDATE** - Since the release of V1.2
+### ✨ Funktionen
+🌐 Web‑GUI – elegantes Interface im Dark‑Theme
+📟 OLED‑Display SH1106 – Echtzeit‑Status und IP‑Anzeige
+📡 WiFi – AP‑Modus (Standard) + konfigurierbarer STA‑Modus
+📨 MQTT – vollständige Integration in Home Assistant
+🔗 Pairing – automatisch oder manuell
+🎮 Steuerung – POWER, HOCH, RUNTER, MODUS
+💾 NVS‑Speicher – Konfiguration bleibt nach einem Reset erhalten
+☁︎ OTA‑Update – seit Version V1.2
   
 
 Files:
-- **DieselPilot.ino** - Application code
+-**DieselPilot.ino** – ursprünglicher Anwendungscode von PPTG
 
-- **HomeAssistantMQTT.txt** - MQTT configuration file for HA
-  
-- Protocol documentation and compatibility moved to the wiki page
+-**DieselPilotMulti.ino** – von mir modifizierter Anwendungscode für 3 Dieselheizungen sowie Übersetzung des Web‑Frontends ins Deutsche
 
-- **tools** - The “tools” folder contains helpful programs that allow you to determine the correct connection of the cc1101 module,
- detect the current frequency of the remote control, and tune to the required frequency. 
+-**HomeAssistantMQTT.txt** – MQTT‑Konfigurationsdatei für Home Assistant
 
-### 🛠️ Required Hardware
+-**tools** – Der Ordner „tools“ enthält nützliche Programme, mit denen du
+
+die korrekte Verbindung des CC1101‑Moduls überprüfen,
+
+die aktuelle Frequenz der Fernbedienung erkennen und
+
+die erforderliche Frequenz feinabstimmen kannst.
+
+### 🛠️ Benötigte Hardware
 
 | Component | Model | Notes |
 |-----------|-------|-------|
@@ -58,7 +62,7 @@ Files:
 | RF Transceiver | CC1101 | 433 MHz |
 | Display | SH1106 | OLED 128x64, I2C |
 
-**CC1101 Wiring:**
+**CC1101 Verdrahtung:**
 ```
 ESP32    CC1101
 -----    ------
@@ -71,7 +75,7 @@ GPIO5  - CSn
 GND    - GND
 ```
 
-**OLED Wiring:**
+**OLED Verdrahtung:**
 ```
 ESP32    SH1106
 -----    ------
@@ -98,47 +102,49 @@ CPU Frequency: 240MHz
 ```
 
 #### 3. Upload
-1. Open `DieselPilot.ino`
+1. Öffne `DieselPilotMulti.ino`
 2. Upload to ESP32
 3. Open Serial Monitor (115200 baud)
 
 
-### 📱 First Run
+### 📱 Erster Start
 
-1. ESP32 starts in **AP mode**
-2. Connect to WiFi: `Diesel-Pilot` (password: `12345678`)
-3. Open browser: `http://192.168.4.1`
-4. Pair heater (AUTO or MANUAL)
-5. (Optional) Configure home WiFi
-6. (Optional) Configure MQTT
+1. ESP32 startet im **AP mode**
+2. Mit Wlan verbinden: `DieselPilot-Multi` (password: `12345678`)
+3. Browser: `http://192.168.4.1`
+4. Wähle und paire eine Heizung seiner Wahl  (AUTO or MANUAL)
+5. Benenne die Heizung (Standart is heater 1, heater 2...)
+6. (Optional) Konfiguriere das Wlan 
+7. (Ungetestet) Konfiguriere MQTT 
 
-** Pairing with the stove or setting up WIFI and MQTT takes a while after clicking the button.
-Wait for the pop-up window to appear confirming the operation.
-This is due to the need to save this data to memory :)
+** Pairing mit der Heizung oder das Einrichten von WiFi und MQTT dauert nach dem Klick auf den Button eine Weile.
+Warte, bis das Pop‑up‑Fenster erscheint und die Operation bestätigt.
+Das liegt daran, dass diese Daten in den Speicher geschrieben werden müssen :)
 
-#### Automatic Pairing
 
-1. Press **AUTO PAIR** in GUI
-2. ESP32 listens for 60 seconds
-3. **Press and hold pairing button on heater panel** (usually ~5-10 seconds)
-   - Heater enters discovery mode
-   - Sends STATUS frame with address
-4. ESP32 catches address and saves in NVS memory
-5. Done - heater paired!
+### Automatic Pairing
+
+1. Wähle die Heizung aus und Drücke **AUTO PAIRING** in GUI
+2. ESP32 versucht für 60 sefunden zuzuhören.
+3. **Drücke und halte die pairing Taste am Display** (circa ~5-10 Sekunden)
+   - Die Heizung wechselt in den Entwicklungsmodus
+   - Sendet STATUS-Frame mit Adresse
+4. ESP32 erfasst die Adresse und speichert sie im NVS-Speicher
+5. Fertig – Heizung gepairt!
 
 - Video showing the pairing process: https://youtu.be/xmEbU_qbN60
 
-### Manual Paring
+### Manuelles Paring
 Read: ForNerds.md
 
 
-**No communication with heater:**
-- Verify frequency (433.937 MHz)
-- Check if heater is paired
-- Make sure heater supports OLED remote 
-- Check CC1101 power voltage (must be 3.3V!)
+**Wnn keine Kommunikation mit der Heizung stattfindet**
+- Überprüfe die Frequenz (433.937 MHz)
+- Prüfe ob die Heizung im Pairing-Modus ist (Display zeigt HFA...)
+- Prüfe ob die Dieselheizung überhaupt OLED Fernbedienungstauglich ist. 
+- Prüfe die CC1101 Spannung (muss 3.3V !)
 
-**OLED not working:**
+**OLED funktioniert nicht:**
 - Check I2C address (default 0x3C)
 - Verify SDA/SCL connections
 
@@ -148,29 +154,31 @@ MIT License - use as you wish, at your own risk!
 
 ---
 
-**CC1101 Debugging:**
-- ⚠️ **IMPORTANT:** Every CC1101 module has minimal frequency deviations!
-- Tested 5 different modules - all work
-- Differences: ±10-30 kHz from nominal 433.92 MHz
-- Use SDR# to verify actual TX frequency
-- If weak reception → frequency tuning in CC1101 code
+**CC1101 Debugging:
 
-**CC1101 Module Calibration:**
-```cpp
-// In case of reception problems, frequency tuning:
-// Default: 433.92 MHz (FREQ2=0x10, FREQ1=0xB1, FREQ0=0x3B)
+⚠️ WICHTIG: Jedes CC1101-Modul hat minimale Frequenzabweichungen!
+5 verschiedene Module getestet – alle funktionieren.
+Abweichungen: ±10–30 kHz von der Nennfrequenz 433,92 MHz.
+Verwende SDR#, um die tatsächliche Sende‑(TX)‑Frequenz zu überprüfen.
+Bei schwachem Empfang → Frequenzabstimmung im CC1101‑Code.
+
+CC1101-Modul Kalibrierung:
+cpp
+// Bei Empfangsproblemen Frequenzabstimmung:
+// Standard: 433,92 MHz (FREQ2=0x10, FREQ1=0xB1, FREQ0=0x3B)
 // 
-// Example from real test - module worked best at 433.937 MHz:
-// Adjust FREQ registers to match your module's actual frequency
-// Use SDR# to find signal center, then tune CC1101
-// Deviations ±10-30 kHz are normal
+// Beispiel aus realem Test – Modul funktionierte optimal bei 433,937 MHz:
+// Passe die FREQ-Register an die tatsächliche Frequenz deines Moduls an
+// Nutze SDR#, um den Signal‑Mittelpunkt zu finden, dann CC1101 abstimmen
+// Abweichungen ±10-30 kHz sind normal
 ```
 
-**Recommended Tools:**
-- ✅ rtl_433 - packet decoding
-- ✅ SDR# / GQRX - spectrum visualization
-- ✅ Inspectrum - IQ recording analysis
-- ✅ Universal Radio Hacker - protocol RE
+**Empfohlene Tools:**
+
+✅ rtl_433 – Paket‑Decoding
+✅ SDR# / GQRX – Spektrum‑Visualisierung
+✅ Inspectrum – IQ‑Aufnahme‑Analyse
+✅ Universal Radio Hacker – Protokoll‑Reverse Engineering
 
 ---
 
@@ -185,7 +193,12 @@ MIT License - use as you wish, at your own risk!
 - ~~Adding error field in GUI~~ ✅
 - ~~Adding error field in MQTT~~ ✅
 
-
+**0.a**
+  -Code expansion – same hardware – control and monitoring of up to 3 diesel heaters✅
+  
+**0.b.**
+  -3 OLED displays to monitor each heater individually and to avoid rotating the display on a single screen
+  
 **1. Fuel Level Sensor ⛽**
 ```
 - Analog reading from fuel sensor
@@ -225,6 +238,7 @@ MIT License - use as you wish, at your own risk!
 
 - **[merbanan/rtl_433](https://github.com/merbanan/rtl_433)** - THE tool for RF protocol reverse engineering! Without this project, protocol analysis would be impossible. Huge thanks for rtl_433! 📡
 - **[DieselHeaterRF](https://github.com/jakkik/DieselHeaterRF)** - inspiration for parts of the protocol and CC1101 library - this is where it all started.
+- **[PPTG]
 - **RTL-SDR community** - for accessible and affordable SDR tools (DVB-T dongles)
 - **SDR#** - for excellent RF spectrum visualization software
 - **Home Assistant Community** - for motivation to create MQTT integration
@@ -235,17 +249,6 @@ MIT License - use as you wish, at your own risk!
 - DVB-T R820T2 dongle - cheap SDR receiver
 - Arduino IDE, 
 
-<img width="874" height="730" alt="WEB" src="https://github.com/user-attachments/assets/a4e0e552-14da-4d78-8f53-31c4da614f80" />
+<img width="1134" height="611" alt="grafik" src="https://github.com/user-attachments/assets/dc24a4c8-ff53-4035-a7fe-b682a0e0da7b" />
+<img width="372" height="628" alt="grafik" src="https://github.com/user-attachments/assets/962d56a8-316a-4877-8082-27a94b575bf2" />
 <img width="300" height="200" alt="Main" src="https://github.com/user-attachments/assets/60ad6659-44c4-4aa2-b6ba-24122151368d" />
-<img width="300" height="200" alt="OTA" src="https://github.com/user-attachments/assets/144348e6-a0b6-4a15-8c61-f9c249082756" />
-<img width="300" height="200" alt="Auto" src="https://github.com/user-attachments/assets/b692eaf9-2e64-407b-a2cd-5df985432718" />
-
-<img width="643" height="944" alt="Zrzut ekranu 2026-01-05 151325" src="https://github.com/user-attachments/assets/e2bd8273-1ace-4bec-9c46-a75536e3ab33" />
-
-![IMG_20260104_011052](https://github.com/user-attachments/assets/754c2dc5-4aaf-4fa1-8733-226128dfb8b9)
-
-<img width="2574" height="3227" alt="Device" src="https://github.com/user-attachments/assets/eea2903f-88ae-41e3-b676-d00306fc08db" />
-
-<img width="1657" height="863" alt="Zrzut ekranu 2026-01-17 212157" src="https://github.com/user-attachments/assets/0b88ff20-092f-4746-a39b-671355b59cc9" />
-
-
