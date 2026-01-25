@@ -138,7 +138,7 @@ Das liegt daran, dass diese Daten in den Speicher geschrieben werden müssen :)
 Read: ForNerds.md
 
 
-**Wnn keine Kommunikation mit der Heizung stattfindet**
+**Wenn keine Kommunikation mit der Heizung stattfindet**
 - Überprüfe die Frequenz (433.937 MHz)
 - Prüfe ob die Heizung im Pairing-Modus ist (Display zeigt HFA...)
 - Prüfe ob die Dieselheizung überhaupt OLED Fernbedienungstauglich ist. 
@@ -152,7 +152,7 @@ Read: ForNerds.md
 
 MIT License - use as you wish, at your own risk!
 
----
+
 
 **CC1101 Debugging:
 
@@ -222,7 +222,7 @@ cpp
 - Driver version detection
 - Pairing mode adjustment
 - Data frame mapping
-```
+
 
 ### 🤝 How to Help Development?
 
@@ -247,7 +247,9 @@ cpp
 - rtl_433 (merbanan) - RF transmission decoding
 - SDR# / GQRX - spectrum analysis
 - DVB-T R820T2 dongle - cheap SDR receiver
-- Arduino IDE, 
+- Arduino IDE
+
+- 
 <img width="1134" height="611" alt="grafik" src="https://github.com/user-attachments/assets/f450bf01-1319-46e3-8ac2-94ada528104a" />
 
 
