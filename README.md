@@ -248,7 +248,9 @@ cpp
 - SDR# / GQRX - spectrum analysis
 - DVB-T R820T2 dongle - cheap SDR receiver
 - Arduino IDE, 
+<img width="1134" height="611" alt="grafik" src="https://github.com/user-attachments/assets/f450bf01-1319-46e3-8ac2-94ada528104a" />
 
-<img width="1134" height="611" alt="grafik" src="https://github.com/user-attachments/assets/dc24a4c8-ff53-4035-a7fe-b682a0e0da7b" />
-<img width="372" height="628" alt="grafik" src="https://github.com/user-attachments/assets/962d56a8-316a-4877-8082-27a94b575bf2" />
-<img width="300" height="200" alt="Main" src="https://github.com/user-attachments/assets/60ad6659-44c4-4aa2-b6ba-24122151368d" />
+
+<img width="372" height="628" alt="grafik" src="https://github.com/user-attachments/assets/12b542b8-15aa-4f58-91e9-b567e355bb44" />
+
+
