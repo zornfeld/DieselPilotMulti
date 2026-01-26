@@ -1,0 +1,742 @@
+/*
+
+- ═══════════════════════════════════════════════════════════════════════════
+- ```
+               DIESEL PILOT MULTI-HEATER EDITION v2.1
+  ```
+- ═══════════════════════════════════════════════════════════════════════════
+- 
+- Erweiterte Version für bis zu 3 Dieselheizungen mit OLED-Steuerung
+- 
+- Features:
+- - 3 Heizungen gleichzeitig steuern
+- - OLED Display mit 4-Button-Steuerung (SSD1306/SSD1315)
+- - Menü-Navigation auf dem Display
+- - Direkte Heizungssteuerung vom Display
+- - Round-Robin RF Polling
+- - Web GUI für alle Heizungen
+- - MQTT Integration (Home Assistant ready)
+- - OTA Updates
+- 
+- Hardware:
+- - ESP32
+- - CC1101 @ 433.937 MHz
+- - SSD1306/SSD1315 OLED (128x64, I2C)
+- - 4 Buttons für Navigation (Up, Down, OK, Back)
+- 
+- Basiert auf: DieselPilot v1.2 by Zornf3ld
+- Erweitert für Multi-Heater Support + OLED Steuerung
+- 
+- GPIO Pin Belegung:
+- - BTN_UP:   Pin 32 (zu GND)
+- - BTN_DOWN: Pin 33 (zu GND)
+- - BTN_OK:   Pin 25 (zu GND)
+- - BTN_BACK: Pin 26 (zu GND)
+- - CC1101 SCK:  Pin 18
+- - CC1101 MISO: Pin 19
+- - CC1101 MOSI: Pin 23
+- - CC1101 SS:   Pin 5
+- - CC1101 GDO2: Pin 4
+- - OLED SDA: Pin 21
+- - OLED SCL: Pin 22
+- 
+- ═══════════════════════════════════════════════════════════════════════════
+  */
+
+#include <WiFi.h>
+#include <WebServer.h>
+#include <Preferences.h>
+#include <PubSubClient.h>
+#include <SPI.h>
+#include <Wire.h>
+#include <U8g2lib.h>
+#include <ArduinoOTA.h>
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MULTI-HEATER CONFIGURATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+#define NUM_HEATERS 3           // Anzahl der Heizungen
+#define RF_POLL_INTERVAL 3000   // ms zwischen Status-Abfragen
+#define HEATER_TIMEOUT 30000    // Offline nach 30 Sekunden
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HARDWARE CONFIG
+// ═══════════════════════════════════════════════════════════════════════════
+
+// CC1101 Pins
+#define PIN_SCK   18
+#define PIN_MISO  19
+#define PIN_MOSI  23
+#define PIN_SS    5
+#define PIN_GDO2  4
+
+// I2C Pins (OLED)
+#define PIN_SDA   21
+#define PIN_SCL   22
+
+// Button Pins - WICHTIG: Diese an deine Hardware anpassen!
+#define BTN_UP    32    // Button für HOCH/Menu Up
+#define BTN_DOWN  33    // Button für RUNTER/Menu Down
+#define BTN_OK    25    // Button für OK/Enter/Select
+#define BTN_BACK  26    // Button für ZURÜCK/Cancel
+
+// OLED Configuration
+#define USE_OLED  true
+
+// Wähle dein Display (nur EINE Zeile auskommentieren):
+// #define USE_SSD1306  // Für SSD1306 128x64
+#define USE_SSD1315     // Für SSD1315 128x64
+
+// Commands
+#define CMD_WAKEUP 0x23
+#define CMD_MODE   0x24
+#define CMD_POWER  0x2B
+#define CMD_UP     0x3C
+#define CMD_DOWN   0x3E
+
+// Heater States
+#define STATE_OFF            0
+#define STATE_STARTUP        1
+#define STATE_WARMING        2
+#define STATE_WARMING_WAIT   3
+#define STATE_PRE_RUN        4
+#define STATE_RUNNING        5
+#define STATE_SHUTDOWN       6
+#define STATE_SHUTTING_DOWN  7
+#define STATE_COOLING        8
+
+// Error Codes
+#define ERR_NONE           0x00
+#define ERR_ON             0x01
+#define ERR_UNDERVOLTAGE   0x02
+#define ERR_OVERVOLTAGE    0x03
+#define ERR_SPARK_PLUG     0x04
+#define ERR_OIL_PUMP       0x05
+#define ERR_OVERHEAT       0x06
+#define ERR_MOTOR          0x07
+#define ERR_DISCONNECT     0x08
+#define ERR_EXTINGUISHED   0x09
+#define ERR_SENSOR         0x0A
+#define ERR_IGNITION       0x0B
+#define ERR_STANDBY        0x0C
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DISPLAY MENU SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum MenuState {
+MENU_OVERVIEW,      // Übersicht aller Heizungen
+MENU_SELECT_HEATER, // Heizung auswählen
+MENU_HEATER_DETAIL, // Detail einer Heizung
+MENU_HEATER_CONTROL // Steuerung einer Heizung
+};
+
+enum ControlOption {
+CTRL_POWER,
+CTRL_TEMP_UP,
+CTRL_TEMP_DOWN,
+CTRL_MODE,
+CTRL_BACK,
+CTRL_OPTIONS_COUNT
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DATA STRUCTURES
+// ═══════════════════════════════════════════════════════════════════════════
+
+struct HeaterData {
+// Configuration
+char name[32];
+uint32_t address;
+bool isPaired;
+bool enabled;
+uint8_t packetSeq;
+
+```
+// Status
+uint8_t state;
+uint8_t power;
+uint16_t voltage;
+int8_t ambientTemp;
+uint8_t caseTemp;
+int8_t setpoint;
+uint8_t pumpFreq;
+bool autoMode;
+int16_t rssi;
+uint8_t errorCode;
+unsigned long lastUpdate;
+
+// MQTT
+char mqttPrefix[64];
+```
+
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GLOBAL OBJECTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+WebServer server(80);
+Preferences prefs;
+WiFiClient espClient;
+PubSubClient mqtt(espClient);
+
+// Display - wähle passenden Treiber
+#ifdef USE_SSD1306
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C display(U8G2_R0, U8X8_PIN_NONE, PIN_SCL, PIN_SDA);
+#else
+U8G2_SSD1315_128X64_NONAME_F_HW_I2C display(U8G2_R0, U8X8_PIN_NONE, PIN_SCL, PIN_SDA);
+#endif
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GLOBAL VARIABLES
+// ═══════════════════════════════════════════════════════════════════════════
+
+String version = “2.1-MULTI-BTN”;
+
+// Multi-Heater Data
+HeaterData heaters[NUM_HEATERS];
+uint8_t currentPollHeater = 0;
+unsigned long lastRFPoll = 0;
+
+// Menu System
+MenuState currentMenu = MENU_OVERVIEW;
+uint8_t selectedHeater = 0;
+uint8_t selectedControl = 0;
+bool menuChanged = true;
+
+// Button States
+bool btnUpPressed = false;
+bool btnDownPressed = false;
+bool btnOkPressed = false;
+bool btnBackPressed = false;
+unsigned long lastButtonPress = 0;
+#define BUTTON_DEBOUNCE 200
+
+// WiFi
+String apSSID = “DieselPilot-Multi”;
+String apPassword = “12345678”;
+String staSSID = “”;
+String staPassword = “”;
+bool useAP = true;
+
+// MQTT
+String deviceName = “DieselPilot-Multi”;
+String mqttServer = “”;
+int mqttPort = 1883;
+String mqttTopic = “diesel”;
+String mqttUser = “”;
+String mqttPassword = “”;
+bool mqttAuthEnabled = false;
+bool mqttEnabled = false;
+
+// OTA
+String otaPassword = “dieselpilot”;
+bool otaEnabled = true;
+
+// Timing
+unsigned long lastMQTTRetry = 0;
+const unsigned long mqttRetryInterval = 30000;
+unsigned long lastDisplayUpdate = 0;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UTILITY FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+const char* getErrorName(uint8_t code) {
+switch(code) {
+case ERR_NONE:         return “OK”;
+case ERR_ON:           return “NORMAL”;
+case ERR_UNDERVOLTAGE: return “UNTERSPANNUNG”;
+case ERR_OVERVOLTAGE:  return “UEBERSPANNUNG”;
+case ERR_SPARK_PLUG:   return “GLUEHKERZE”;
+case ERR_OIL_PUMP:     return “OEL PUMPE”;
+case ERR_OVERHEAT:     return “UEBERHITZUNG”;
+case ERR_MOTOR:        return “MOTOR”;
+case ERR_DISCONNECT:   return “DISCONNECT”;
+case ERR_EXTINGUISHED: return “FLAMME AUS”;
+case ERR_SENSOR:       return “SENSOR”;
+case ERR_IGNITION:     return “ZUENDUNG”;
+case ERR_STANDBY:      return “STANDBY”;
+default:               return “UNBEKANNT”;
+}
+}
+
+const char* getStateName(uint8_t state) {
+switch(state) {
+case STATE_OFF: return “OFF”;
+case STATE_STARTUP: return “STARTEN”;
+case STATE_WARMING: return “AUFWAERMEN”;
+case STATE_WARMING_WAIT: return “WARM WARTEN”;
+case STATE_PRE_RUN: return “PRE-RUN”;
+case STATE_RUNNING: return “RUNNING”;
+case STATE_SHUTDOWN: return “HERUNTERFAHREN”;
+case STATE_SHUTTING_DOWN: return “SHUTTING”;
+case STATE_COOLING: return “COOLING”;
+default: return “UNKNOWN”;
+}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CC1101 LOW-LEVEL FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+void cc1101_writeReg(uint8_t addr, uint8_t val) {
+digitalWrite(PIN_SS, LOW);
+while(digitalRead(PIN_MISO));
+SPI.transfer(addr);
+SPI.transfer(val);
+digitalWrite(PIN_SS, HIGH);
+}
+
+void cc1101_writeBurst(uint8_t addr, uint8_t len, uint8_t* bytes) {
+digitalWrite(PIN_SS, LOW);
+while(digitalRead(PIN_MISO));
+SPI.transfer(addr);
+for(int i = 0; i < len; i++) {
+SPI.transfer(bytes[i]);
+}
+digitalWrite(PIN_SS, HIGH);
+}
+
+void cc1101_strobe(uint8_t addr) {
+digitalWrite(PIN_SS, LOW);
+while(digitalRead(PIN_MISO));
+SPI.transfer(addr);
+digitalWrite(PIN_SS, HIGH);
+}
+
+uint8_t cc1101_readReg(uint8_t addr) {
+digitalWrite(PIN_SS, LOW);
+while(digitalRead(PIN_MISO));
+SPI.transfer(addr);
+uint8_t val = SPI.transfer(0xFF);
+digitalWrite(PIN_SS, HIGH);
+return val;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CRC-16/MODBUS
+// ═══════════════════════════════════════════════════════════════════════════
+
+uint16_t crc16_modbus(uint8_t* buf, int len) {
+uint16_t crc = 0xFFFF;
+for(int pos = 0; pos < len; pos++) {
+crc ^= (uint8_t)buf[pos];
+for(int i = 8; i != 0; i–) {
+if((crc & 0x0001) != 0) {
+crc >>= 1;
+crc ^= 0xA001;
+} else {
+crc >>= 1;
+}
+}
+}
+return crc;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CC1101 INIT
+// ═══════════════════════════════════════════════════════════════════════════
+
+void cc1101_init() {
+cc1101_strobe(0x30); // SRES
+delay(100);
+
+```
+cc1101_writeReg(0x00, 0x07);
+cc1101_writeReg(0x02, 0x06);
+cc1101_writeReg(0x03, 0x47);
+cc1101_writeReg(0x07, 0x04);
+cc1101_writeReg(0x08, 0x05);
+cc1101_writeReg(0x0A, 0x00);
+cc1101_writeReg(0x0B, 0x06);
+cc1101_writeReg(0x0C, 0x00);
+
+// 433.937 MHz
+cc1101_writeReg(0x0D, 0x10);
+cc1101_writeReg(0x0E, 0xB0);
+cc1101_writeReg(0x0F, 0x8A);
+
+cc1101_writeReg(0x10, 0xF8);
+cc1101_writeReg(0x11, 0x93);
+cc1101_writeReg(0x12, 0x13);
+cc1101_writeReg(0x13, 0x22);
+cc1101_writeReg(0x14, 0xF8);
+cc1101_writeReg(0x15, 0x26);
+cc1101_writeReg(0x17, 0x30);
+cc1101_writeReg(0x18, 0x18);
+cc1101_writeReg(0x19, 0x16);
+cc1101_writeReg(0x1A, 0x6C);
+cc1101_writeReg(0x1B, 0x03);
+cc1101_writeReg(0x1C, 0x40);
+cc1101_writeReg(0x1D, 0x91);
+cc1101_writeReg(0x20, 0xFB);
+cc1101_writeReg(0x21, 0x56);
+cc1101_writeReg(0x22, 0x17);
+cc1101_writeReg(0x23, 0xE9);
+cc1101_writeReg(0x24, 0x2A);
+cc1101_writeReg(0x25, 0x00);
+cc1101_writeReg(0x26, 0x1F);
+cc1101_writeReg(0x2C, 0x81);
+cc1101_writeReg(0x2D, 0x35);
+cc1101_writeReg(0x2E, 0x09);
+cc1101_writeReg(0x09, 0x00);
+cc1101_writeReg(0x04, 0x7E);
+cc1101_writeReg(0x05, 0x3C);
+
+uint8_t paTable[8] = {0x00, 0x12, 0x0E, 0x34, 0x60, 0xC5, 0xC1, 0xC0};
+cc1101_writeBurst(0x7E, 8, paTable);
+
+cc1101_strobe(0x31);
+cc1101_strobe(0x36);
+cc1101_strobe(0x3B);
+cc1101_strobe(0x36);
+cc1101_strobe(0x3A);
+delay(136);
+
+Serial.println("✅ CC1101 initialized");
+```
+
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TX/RX FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+void txFlush() {
+cc1101_strobe(0x36);
+cc1101_strobe(0x3B);
+delay(16);
+}
+
+void txBurst(uint8_t len, uint8_t* bytes) {
+txFlush();
+cc1101_writeBurst(0x7F, len, bytes);
+cc1101_strobe(0x35);
+}
+
+void sendCommand(uint8_t heaterIdx, uint8_t cmd) {
+if(heaterIdx >= NUM_HEATERS || !heaters[heaterIdx].isPaired) return;
+
+```
+uint8_t buf[10];
+buf[0] = 9;
+buf[1] = cmd;
+buf[2] = (heaters[heaterIdx].address >> 24) & 0xFF;
+buf[3] = (heaters[heaterIdx].address >> 16) & 0xFF;
+buf[4] = (heaters[heaterIdx].address >> 8) & 0xFF;
+buf[5] = heaters[heaterIdx].address & 0xFF;
+buf[6] = heaters[heaterIdx].packetSeq++;
+buf[9] = 0;
+
+uint16_t crc = crc16_modbus(buf, 7);
+buf[7] = (crc >> 8) & 0xFF;
+buf[8] = crc & 0xFF;
+
+for(int i = 0; i < 10; i++) {
+    txBurst(10, buf);
+    unsigned long t = millis();
+    while(cc1101_readReg(0xF5) != 0x01) {
+        delay(1);
+        if(millis() - t > 100) return;
+    }
+}
+
+Serial.printf("[HEATER %d] Command sent: 0x%02X\n", heaterIdx + 1, cmd);
+```
+
+}
+
+void rxFlush() {
+cc1101_strobe(0x36);
+cc1101_readReg(0xBF);
+cc1101_strobe(0x3A);
+delay(16);
+}
+
+void rxEnable() {
+cc1101_strobe(0x34);
+}
+
+bool receivePacket(uint8_t* bytes, uint16_t timeout) {
+unsigned long t = millis();
+uint8_t rxLen;
+
+```
+rxFlush();
+rxEnable();
+
+while(1) {
+    yield();
+    if(millis() - t > timeout) return false;
+    
+    while(!digitalRead(PIN_GDO2)) {
+        yield();
+        if(millis() - t > timeout) return false;
+    }
+    
+    delay(5);
+    rxLen = cc1101_readReg(0xFB);
+    
+    if(rxLen >= 23 && rxLen <= 26) break;
+    
+    rxFlush();
+    rxEnable();
+}
+
+for(int i = 0; i < rxLen; i++) {
+    bytes[i] = cc1101_readReg(0xBF);
+}
+
+rxFlush();
+
+uint16_t crc = crc16_modbus(bytes, 21);
+uint16_t rxCrc = (bytes[21] << 8) | bytes[22];
+
+return (crc == rxCrc);
+```
+
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MULTI-HEATER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+void updateHeaterStatus(uint8_t heaterIdx) {
+if(heaterIdx >= NUM_HEATERS || !heaters[heaterIdx].isPaired || !heaters[heaterIdx].enabled) {
+return;
+}
+
+```
+sendCommand(heaterIdx, CMD_WAKEUP);
+
+uint8_t buf[32];
+if(receivePacket(buf, 2000)) {
+    uint32_t addr = ((uint32_t)buf[2] << 24) | ((uint32_t)buf[3] << 16) | 
+                    ((uint32_t)buf[4] << 8) | buf[5];
+    
+    if(addr == heaters[heaterIdx].address) {
+        heaters[heaterIdx].state = buf[6];
+        heaters[heaterIdx].power = buf[7];
+        heaters[heaterIdx].errorCode = buf[7];
+        heaters[heaterIdx].voltage = buf[9];
+        heaters[heaterIdx].ambientTemp = (int8_t)buf[10];
+        heaters[heaterIdx].caseTemp = buf[12];
+        heaters[heaterIdx].setpoint = (int8_t)buf[13];
+        heaters[heaterIdx].autoMode = (buf[14] == 0x32);
+        heaters[heaterIdx].pumpFreq = buf[15];
+        heaters[heaterIdx].rssi = (buf[23] - (buf[23] >= 128 ? 256 : 0)) / 2 - 74;
+        heaters[heaterIdx].lastUpdate = millis();
+        
+        Serial.printf("[HEATER %d] Status OK - State: %s, Temp: %d°C\n", 
+                     heaterIdx + 1, 
+                     getStateName(heaters[heaterIdx].state),
+                     heaters[heaterIdx].ambientTemp);
+    }
+} else {
+    Serial.printf("[HEATER %d] No response\n", heaterIdx + 1);
+}
+```
+
+}
+
+void handleRFCommunication() {
+if(millis() - lastRFPoll >= RF_POLL_INTERVAL) {
+updateHeaterStatus(currentPollHeater);
+currentPollHeater = (currentPollHeater + 1) % NUM_HEATERS;
+lastRFPoll = millis();
+}
+}
+
+void monitorHeaters() {
+unsigned long now = millis();
+for(int i = 0; i < NUM_HEATERS; i++) {
+if(!heaters[i].isPaired || !heaters[i].enabled) continue;
+
+```
+    if(now - heaters[i].lastUpdate > HEATER_TIMEOUT) {
+        if(heaters[i].lastUpdate > 0) {
+            Serial.printf("[HEATER %d] OFFLINE!\n", i + 1);
+        }
+    }
+}
+```
+
+}
+
+uint32_t findHeater(uint16_t timeout) {
+Serial.println(“🔍 Searching for heater…”);
+
+```
+uint8_t buf[32];
+if(receivePacket(buf, timeout)) {
+    uint32_t addr = ((uint32_t)buf[2] << 24) | ((uint32_t)buf[3] << 16) | 
+                    ((uint32_t)buf[4] << 8) | buf[5];
+    return addr;
+}
+return 0;
+```
+
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIG STORAGE
+// ═══════════════════════════════════════════════════════════════════════════
+
+void loadHeaterConfig(uint8_t idx) {
+char key[32];
+
+```
+sprintf(key, "h%d_addr", idx);
+heaters[idx].address = prefs.getUInt(key, 0);
+
+sprintf(key, "h%d_name", idx);
+String defaultName = "Heater " + String(idx + 1);
+prefs.getString(key, heaters[idx].name, sizeof(heaters[idx].name));
+if(strlen(heaters[idx].name) == 0) {
+    defaultName.toCharArray(heaters[idx].name, sizeof(heaters[idx].name));
+}
+
+sprintf(key, "h%d_paired", idx);
+heaters[idx].isPaired = prefs.getBool(key, false);
+
+sprintf(key, "h%d_enabled", idx);
+heaters[idx].enabled = prefs.getBool(key, true);
+
+sprintf(heaters[idx].mqttPrefix, "%s/heater%d", mqttTopic.c_str(), idx + 1);
+
+heaters[idx].packetSeq = 0;
+heaters[idx].state = 0;
+heaters[idx].power = 0;
+heaters[idx].voltage = 0;
+heaters[idx].ambientTemp = 0;
+heaters[idx].caseTemp = 0;
+heaters[idx].setpoint = 0;
+heaters[idx].pumpFreq = 0;
+heaters[idx].autoMode = false;
+heaters[idx].rssi = 0;
+heaters[idx].errorCode = 0;
+heaters[idx].lastUpdate = 0;
+```
+
+}
+
+void saveHeaterConfig(uint8_t idx) {
+char key[32];
+
+```
+sprintf(key, "h%d_addr", idx);
+prefs.putUInt(key, heaters[idx].address);
+
+sprintf(key, "h%d_name", idx);
+prefs.putString(key, heaters[idx].name);
+
+sprintf(key, "h%d_paired", idx);
+prefs.putBool(key, heaters[idx].isPaired);
+
+sprintf(key, "h%d_enabled", idx);
+prefs.putBool(key, heaters[idx].enabled);
+
+Serial.printf("✅ Saved config for Heater %d\n", idx + 1);
+```
+
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BUTTON HANDLING
+// ═══════════════════════════════════════════════════════════════════════════
+
+void initButtons() {
+pinMode(BTN_UP, INPUT_PULLUP);
+pinMode(BTN_DOWN, INPUT_PULLUP);
+pinMode(BTN_OK, INPUT_PULLUP);
+pinMode(BTN_BACK, INPUT_PULLUP);
+Serial.println(“✅ Buttons initialized (UP, DOWN, OK, BACK)”);
+}
+
+bool readButton(uint8_t pin) {
+if(millis() - lastButtonPress < BUTTON_DEBOUNCE) return false;
+
+```
+if(digitalRead(pin) == LOW) {
+    lastButtonPress = millis();
+    delay(50);
+    while(digitalRead(pin) == LOW) delay(10);
+    return true;
+}
+return false;
+```
+
+}
+
+void handleButtons() {
+if(readButton(BTN_UP)) {
+btnUpPressed = true;
+menuChanged = true;
+Serial.println(”[BTN] UP pressed”);
+}
+if(readButton(BTN_DOWN)) {
+btnDownPressed = true;
+menuChanged = true;
+Serial.println(”[BTN] DOWN pressed”);
+}
+if(readButton(BTN_OK)) {
+btnOkPressed = true;
+menuChanged = true;
+Serial.println(”[BTN] OK pressed”);
+}
+if(readButton(BTN_BACK)) {
+btnBackPressed = true;
+menuChanged = true;
+Serial.println(”[BTN] BACK pressed”);
+}
+}
+
+void processMenuInput() {
+if(!btnUpPressed && !btnDownPressed && !btnOkPressed && !btnBackPressed) return;
+
+```
+switch(currentMenu) {
+    case MENU_OVERVIEW:
+        if(btnOkPressed) {
+            currentMenu = MENU_SELECT_HEATER;
+            selectedHeater = 0;
+            Serial.println("[MENU] -> SELECT_HEATER");
+        }
+        break;
+        
+    case MENU_SELECT_HEATER:
+        if(btnUpPressed) {
+            selectedHeater = (selectedHeater > 0) ? selectedHeater - 1 : NUM_HEATERS - 1;
+            Serial.printf("[MENU] Selected heater: %d\n", selectedHeater);
+        }
+        if(btnDownPressed) {
+            selectedHeater = (selectedHeater + 1) % NUM_HEATERS;
+            Serial.printf("[MENU] Selected heater: %d\n", selectedHeater);
+        }
+        if(btnOkPressed) {
+            if(heaters[selectedHeater].isPaired) {
+                currentMenu = MENU_HEATER_DETAIL;
+                Serial.printf("[MENU] -> HEATER_DETAIL (Heater %d)\n", selectedHeater);
+            } else {
+                Serial.println("[MENU] Heater not paired!");
+            }
+        }
+        if(btnBackPressed) {
+            currentMenu = MENU_OVERVIEW;
+            Serial.println("[MENU] -> OVERVIEW");
+        }
+        break;
+        
+    case MENU_HEATER_DETAIL:
+        if(btnOkPressed) {
+            currentMenu = MENU_HEATER_CONTROL;
+            selectedControl = 0;
+            Serial.println("[MENU] -> HEATER_CONTROL");
+        }
+        if(btnBackPressed) {
+            currentMenu = MENU_SELECT_HEATER;
+            Serial.println("[MENU] -> SELECT
+```
